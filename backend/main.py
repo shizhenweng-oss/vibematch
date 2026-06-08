@@ -19,7 +19,18 @@ from contextlib import asynccontextmanager
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
-DB_PATH  = os.path.join(os.path.dirname(__file__), "vibematch.db")
+
+if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+    DB_PATH = "/tmp/vibematch.db"
+    src_db = os.path.join(os.path.dirname(__file__), "vibematch.db")
+    if os.path.exists(src_db) and not os.path.exists(DB_PATH):
+        import shutil
+        try:
+            shutil.copy(src_db, DB_PATH)
+        except Exception:
+            pass
+else:
+    DB_PATH = os.path.join(os.path.dirname(__file__), "vibematch.db")
 
 # ── In-memory cache for GitHub search results ─────────────────────────────────
 _github_projects_cache: dict = {"data": None, "fetched_at": 0}
