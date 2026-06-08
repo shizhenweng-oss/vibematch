@@ -2499,7 +2499,7 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-5">
                       {filteredProjectsShowroom.map((project, i) => (
                         <ProjectCard
                           key={project.id}
@@ -2547,7 +2547,7 @@ export default function App() {
                               className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-xs text-text-primary resize-none focus:outline-none focus:border-violet-500/50"
                             />
 
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="flex flex-col gap-3">
                               <input
                                 type="text"
                                 placeholder="Tech (comma sep) *"
