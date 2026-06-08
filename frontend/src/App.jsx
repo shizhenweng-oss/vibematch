@@ -2297,19 +2297,6 @@ export default function App() {
   const vibedIdSet = useMemo(() => new Set(vibedProjects.map(p => p.id)), [vibedProjects])
   const connectedIdSet = useMemo(() => new Set(connections.map(c => c.id)), [connections])
 
-  if (view === 'loading') {
-    return (
-      <div className="min-h-screen mesh-bg flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-gradient-brand flex items-center justify-center animate-pulse-glow">
-            <Sparkles className="w-5 h-5 text-white" />
-          </div>
-          <p className="text-text-faint text-sm animate-pulse">Initializing Real-Time Sync...</p>
-        </div>
-      </div>
-    )
-  }
-
   const syncValue = useMemo(() => ({
     registeredUsers,
     projectThoughts,
@@ -2322,6 +2309,19 @@ export default function App() {
     handleDeleteThought,
     handleVibe
   }), [registeredUsers, projectThoughts, messages, activeConversation, isConnected, sendMessage, handlePublishThought, handleDeleteThought, handleVibe])
+
+  if (view === 'loading') {
+    return (
+      <div className="min-h-screen mesh-bg flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-gradient-brand flex items-center justify-center animate-pulse-glow">
+            <Sparkles className="w-5 h-5 text-white" />
+          </div>
+          <p className="text-text-faint text-sm animate-pulse">Initializing Real-Time Sync...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <RealtimeSyncContext.Provider value={syncValue}>
