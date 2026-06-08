@@ -1540,6 +1540,7 @@ export default function App() {
   const [isConnected, setIsConnected] = useState(false)
   const wsRef = useRef(null)
   const reconnectTimeoutRef = useRef(null)
+  const sidebarRef = useRef(null)
 
   // Layout & sidebar panels states
   const [sidebarOpen, setSidebarOpen] = useState(true)
