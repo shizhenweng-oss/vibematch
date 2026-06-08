@@ -1496,6 +1496,7 @@ export default function App() {
   // Layout & sidebar panels states
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isCreatorPanelOpen, setIsCreatorPanelOpen] = useState(false)
+  const [isChatPanelOpen, setIsChatPanelOpen] = useState(false)
   const [activePanel, setActivePanel] = useState('peers')
   const [searchQuery, setSearchQuery] = useState('')
   const [objectiveFilter, setObjectiveFilter] = useState('all')
@@ -2173,10 +2174,14 @@ export default function App() {
 
   const handleOpenMessage = useCallback((profile) => {
     setActiveConversation({ type: 'dm', peer: profile })
+    setIsChatPanelOpen(true)
+    setIsCreatorPanelOpen(false)
   }, [])
 
   const handleOpenProjectChat = useCallback((project) => {
     setActiveConversation({ type: 'project', project })
+    setIsChatPanelOpen(true)
+    setIsCreatorPanelOpen(false)
   }, [])
 
   const handleSignOut = () => {
@@ -2406,7 +2411,7 @@ export default function App() {
             <motion.div
               layout
               initial={{ width: 64 }}
-              animate={{ width: isCreatorPanelOpen ? 380 : 64 }}
+              animate={{ width: isCreatorPanelOpen || isChatPanelOpen ? 380 : 64 }}
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
               className="shrink-0 border-l border-slate-800/60 bg-[#161925]/95 backdrop-blur-2xl h-full flex flex-col z-20 shadow-[-10px_0_30px_rgba(0,0,0,0.5)] overflow-hidden"
             >
@@ -2539,17 +2544,40 @@ export default function App() {
                     </button>
                   </div>
                 </div>
+              ) : isChatPanelOpen ? (
+                <div className="w-[380px] flex flex-col h-full opacity-0 animate-fade-in delay-100 bg-[#0b0f19]">
+                  <div className="p-5 border-b border-slate-800/60 flex items-center justify-between">
+                    <h2 className="text-sm font-black text-text-primary flex items-center gap-2 uppercase tracking-wide">
+                      <MessageSquare className="w-4 h-4 text-teal-400" />
+                      Communications
+                    </h2>
+                    <button onClick={() => setIsChatPanelOpen(false)} className="p-1.5 rounded-lg hover:bg-white/5 text-text-faint hover:text-white transition-colors">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-hidden">
+                    <CollaboratorChat
+                      activeConversation={activeConversation}
+                      setActiveConversation={setActiveConversation}
+                      messages={messages}
+                      sendMessage={sendMessage}
+                      myUsername={myUsername}
+                      registeredUsers={registeredUsers}
+                      connections={connections}
+                    />
+                  </div>
+                </div>
               ) : (
                 <div className="w-16 flex flex-col items-center py-6 h-full gap-8 bg-[#0b0f19]/30">
-                  <button onClick={() => setIsCreatorPanelOpen(true)} className="w-10 h-10 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shadow-[0_0_15px_rgba(79,70,229,0.4)] transition-all hover:scale-110 group relative">
+                  <button onClick={() => { setIsCreatorPanelOpen(true); setIsChatPanelOpen(false); }} className="w-10 h-10 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shadow-[0_0_15px_rgba(79,70,229,0.4)] transition-all hover:scale-110 group relative">
                     <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
                   </button>
                   
                   <div className="flex flex-col gap-6 items-center flex-1">
-                    <div className="p-2 rounded-xl text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 cursor-pointer hover:bg-indigo-500/20 transition-colors">
+                    <div onClick={() => { setIsCreatorPanelOpen(false); setIsChatPanelOpen(false); }} className="p-2 rounded-xl text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 cursor-pointer hover:bg-indigo-500/20 transition-colors">
                       <LayoutDashboard className="w-5 h-5" />
                     </div>
-                    <div className="p-2 rounded-xl text-text-faint hover:text-teal-400 hover:bg-teal-500/10 cursor-pointer transition-colors relative">
+                    <div onClick={() => { setIsChatPanelOpen(true); setIsCreatorPanelOpen(false); }} className="p-2 rounded-xl text-text-faint hover:text-teal-400 hover:bg-teal-500/10 cursor-pointer transition-colors relative">
                       <MessageSquare className="w-5 h-5" />
                       {messages.length > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-teal-400 rounded-full"></span>}
                     </div>
