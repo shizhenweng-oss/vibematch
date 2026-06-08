@@ -5,7 +5,7 @@ import {
   MessageSquare, UserPlus, Star, Tag, Link2, Flame, ChevronLeft,
   ChevronRight, Plus, X, Send, Check, UserCheck, AlertCircle, Loader2,
   MapPin, BookOpen, WifiOff, ArrowLeft, Linkedin, Trash2
-} from 'lucide-react'
+, LayoutDashboard, Camera, Settings } from 'lucide-react'
 import axios from 'axios'
 import { motion, AnimatePresence } from 'framer-motion'
 import { readSession, saveSession, clearSession } from './hooks/useSession.js'
@@ -487,6 +487,7 @@ function PeerCard({ profile, isConnected = false, onConnect, onOpenMessage, inde
 }
 
 // ── PROJECT CARD COMPONENT (UPDATED: Media pipeline, cover image, thumbnail grid) ──
+
 function ProjectCard({ project, isVibed = false, onVibe, onDelete, currentUsername, onOpenMessage, onOpenProjectChat, registeredUsers, index = 0 }) {
   const [isHovered, setIsHovered] = useState(false)
   const primaryTech = project.languages?.[0] || 'Tech'
@@ -495,78 +496,66 @@ function ProjectCard({ project, isVibed = false, onVibe, onDelete, currentUserna
   const isHighlyPopular = popularityScore >= 5
 
   return (
-    <article
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className="relative rounded-2xl border border-white/6 overflow-hidden flex flex-col transition-all duration-500 ease-in-out cursor-default"
-      style={{
-        background: 'rgba(18, 18, 26, 0.85)',
-        backdropFilter: 'blur(16px)',
-        boxShadow: isHovered ? '0 12px 36px rgba(124, 58, 237, 0.15)' : 'none',
-      }}
+    <motion.article
+      layout
+      onHoverStart={() => setIsHovered(true)}
+      onHoverEnd={() => setIsHovered(false)}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: index * 0.05 }}
+      className="relative rounded-2xl border border-slate-800/60 overflow-hidden flex flex-col cursor-default shadow-card hover:shadow-card-hover bg-[#161925]"
     >
       {/* Tech color accent bar */}
       <div
-        className="h-0.5 w-full shrink-0"
+        className="h-1 w-full shrink-0"
         style={{
           background: `linear-gradient(90deg, ${accent.from}cc, ${accent.to}30, transparent)`,
         }}
       />
 
-      {/* Cover Image */}
-      {project.cover_image && (
-        <div className="w-full h-32 overflow-hidden border-b border-white/6 bg-surface shrink-0 relative">
-          <img
-            src={project.cover_image}
-            alt={`${project.title || project.name} cover`}
-            className="w-full h-full object-cover transition-transform duration-700 ease-out hover:scale-105"
-          />
-        </div>
-      )}
-
       <div className="p-5 flex-1 flex flex-col justify-between">
         <div>
           {/* Header */}
           <div className="flex items-start justify-between gap-3 mb-2">
-            <h3 className="font-bold text-text-primary text-sm leading-snug truncate flex-1">
+            <h3 className="font-black text-text-primary text-base leading-snug truncate flex-1 tracking-wide">
               {project.title || project.name}
             </h3>
             {/* Popularity Badge */}
-            <div className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10px] font-bold shrink-0 ${
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold shrink-0 shadow-sm ${
               isHighlyPopular
-                ? 'bg-amber-500/10 border-amber-500/20 text-amber-300'
-                : 'bg-white/4 border-white/8 text-text-faint'
+                ? 'bg-amber-500/10 border-amber-500/20 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.2)]'
+                : 'bg-[#0b0f19] border-slate-700/50 text-text-muted'
             }`}>
               {isHighlyPopular ? (
                 <Flame className="w-3 h-3 text-amber-400 fill-amber-400" />
               ) : (
-                <TrendingUp className="w-3 h-3 text-text-faint" />
+                <TrendingUp className="w-3 h-3 text-text-muted" />
               )}
-              <span>Vibes: {popularityScore}</span>
+              <span className="tracking-widest uppercase">Vibes: {popularityScore}</span>
             </div>
           </div>
 
           {/* Author */}
-          <div className="flex items-center gap-2 mb-3 select-none">
+          <div className="flex items-center gap-2.5 mb-4 select-none">
             <img
               src={project.avatar || `https://api.dicebear.com/8.x/initials/svg?seed=${project.author || 'dev'}`}
               alt={project.author || 'dev'}
-              className="w-5 h-5 rounded-full border border-white/10 shrink-0"
+              className="w-6 h-6 rounded-full border border-slate-700 shrink-0"
               onError={(e) => { e.target.src = `https://api.dicebear.com/8.x/initials/svg?seed=${project.author || 'dev'}` }}
             />
-            <span className="text-[10px] text-text-faint font-semibold truncate">
+            <span className="text-[11px] text-text-muted font-bold truncate tracking-wider">
               {project.handle || `@${project.author || 'builder'}`}
             </span>
           </div>
 
           {/* Compact horizontal grid of project thumbnails */}
           {project.images && project.images.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto py-1 mb-3 scrollbar-none select-none">
+            <div className="flex gap-2 overflow-x-auto py-1 mb-4 scrollbar-none select-none">
               {project.images.map((img, idx) => (
                 <div
                   key={idx}
-                  className={`w-16 h-12 rounded-lg overflow-hidden border shrink-0 bg-surface transition-all ${
-                    project.cover_image === img ? 'border-violet-500 ring-2 ring-violet-500/20' : 'border-white/10'
+                  className={`w-16 h-12 rounded-lg overflow-hidden border shrink-0 bg-[#0b0f19] transition-all ${
+                    project.cover_image === img ? 'border-indigo-500 ring-2 ring-indigo-500/20' : 'border-slate-800/60'
                   }`}
                 >
                   <img src={img} className="w-full h-full object-cover" alt={`thumbnail-${idx}`} />
@@ -574,163 +563,125 @@ function ProjectCard({ project, isVibed = false, onVibe, onDelete, currentUserna
               ))}
             </div>
           )}
+        </div>
 
-          {/* Stack Tagging */}
-          <div className="flex flex-wrap gap-1 mb-2">
-            {(project.languages || []).map((lang) => {
-              const c = getTagColor(lang)
-              return (
-                <span
-                  key={lang}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border"
-                  style={{
-                    backgroundColor: `${c.from}15`,
-                    borderColor: `${c.from}40`,
-                    color: c.text,
-                  }}
+        {/* Collapsed skeleton vs Expanded view with Framer Motion layout transition */}
+        <AnimatePresence>
+          {isHovered && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ type: 'spring', bounce: 0.25, duration: 0.5 }}
+              className="overflow-hidden mt-3 pt-4 border-t border-slate-800/60"
+            >
+              {/* Cover Image */}
+              {project.cover_image && (
+                <motion.div className="w-full h-48 overflow-hidden rounded-xl border border-slate-800/60 bg-[#0b0f19] mb-4 relative shadow-inner">
+                  <img
+                    src={project.cover_image}
+                    alt={`${project.title || project.name} cover`}
+                    className="w-full h-full object-cover"
+                  />
+                </motion.div>
+              )}
+
+              {/* Discussion Header */}
+              <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-2">Conceptual Insight</p>
+              <p className="text-xs text-text-muted leading-relaxed mb-4">
+                {project.discussion || project.description}
+              </p>
+
+              {/* Custom tag tokens */}
+              {project.tags && project.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-4">
+                  {project.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider bg-[#0b0f19] border border-slate-700 text-teal-400 shadow-sm"
+                    >
+                      <Tag className="w-2.5 h-2.5 text-teal-500" />
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Languages/Stack */}
+              <div className="flex flex-wrap gap-1.5 mb-5">
+                {(project.languages || []).map((lang) => {
+                  const c = getTagColor(lang)
+                  return (
+                    <span
+                      key={lang}
+                      className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider border"
+                      style={{
+                        backgroundColor: `${c.from}15`,
+                        borderColor: `${c.from}40`,
+                        color: c.text,
+                      }}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: c.from }} />
+                      {lang}
+                    </span>
+                  )
+                })}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-3 mt-auto">
+                <button
+                  onClick={() => onVibe(project)}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                    isVibed
+                      ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                      : 'bg-indigo-600/10 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500 hover:text-white shadow-[0_0_15px_rgba(79,70,229,0.15)] hover:shadow-[0_0_25px_rgba(79,70,229,0.4)]'
+                  }`}
                 >
-                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: c.from }} />
-                  {lang}
-                </span>
-              )
-            })}
-          </div>
-        </div>
+                  <Zap className={`w-3.5 h-3.5 ${isVibed ? 'fill-amber-400 text-amber-400' : ''}`} />
+                  {isVibed ? 'Vibed' : 'Vibe'}
+                </button>
 
-        {/* Collapsed skeleton vs Expanded view transitioning with Tailwind transition utilities */}
-        <div
-          className={`transition-all duration-500 ease-in-out overflow-hidden ${
-            isHovered ? 'max-h-96 opacity-100 mt-3 pt-3 border-t border-white/6' : 'max-h-0 opacity-0'
-          }`}
-        >
-          {/* Discussion Header */}
-          <p className="text-[10px] font-bold uppercase tracking-wider text-violet-400 mb-1">Conceptual discussion</p>
-          <p className="text-[11px] text-text-muted leading-relaxed mb-3">
-            {project.discussion || project.description}
-          </p>
+                {project.github_url && (
+                  <a
+                    href={project.github_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest bg-[#0b0f19] border border-slate-700 text-text-primary hover:bg-[#1e293b] hover:border-slate-500 transition-all shadow-sm"
+                  >
+                    <Github className="w-3.5 h-3.5" />
+                    Repo
+                  </a>
+                )}
 
-          {/* Custom tag tokens */}
-          {project.tags && project.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mb-3">
-              {project.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] bg-white/4 border border-white/6 text-text-faint"
-                >
-                  <Tag className="w-2 h-2" />
-                  {tag}
-                </span>
-              ))}
-            </div>
+                {currentUsername !== project.author && (
+                  <button
+                    onClick={() => {
+                      const peerProfile = registeredUsers.find(u => u.github_url === project.github_url || u.id === project.author)
+                      if (peerProfile) onOpenMessage(peerProfile)
+                    }}
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-[#0b0f19] border border-slate-700 text-teal-400 hover:bg-teal-500/10 hover:border-teal-500/50 transition-all"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    Discuss
+                  </button>
+                )}
+
+                {currentUsername === project.author && (
+                  <button
+                    onClick={() => onDelete(project.id)}
+                    className="p-2.5 rounded-xl text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/30 transition-all"
+                    title="Delete Thought"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </motion.div>
           )}
-
-          {/* Repository Link */}
-          {(project.github_url || project.repo_url) && (
-            <a
-              href={project.github_url || project.repo_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1.5 w-full py-2 rounded-xl text-[11px] font-bold text-white transition-all duration-200"
-              style={{
-                background: `linear-gradient(135deg, ${accent.from}, ${accent.to})`,
-                boxShadow: `0 4px 12px ${accent.from}35`,
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Github className="w-3.5 h-3.5" />
-              GitHub Repo
-              <Link2 className="w-3.5 h-3.5 ml-auto" />
-            </a>
-          )}
-
-          {/* Real-time Collaboration Chat Shortcuts */}
-          <div className="grid grid-cols-2 gap-2 mt-2 select-none">
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onOpenProjectChat?.(project)
-              }}
-              className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-[10px] font-bold border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 hover:text-cyan-300 transition-all duration-200"
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              Discuss
-            </button>
-            
-            {project.author && project.author.toLowerCase() !== currentUsername?.toLowerCase() && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  const authorProfile = registeredUsers?.find(u => u.id.replace('real_', '').toLowerCase() === project.author.toLowerCase()) || {
-                    id: `real_${project.author}`,
-                    name: project.author,
-                    avatar: project.avatar || `https://api.dicebear.com/8.x/initials/svg?seed=${project.author}`,
-                    github_url: project.github_url || `https://github.com/${project.author}`,
-                    linkedin_id: '',
-                    objective: '',
-                    workstyle: '',
-                    skills: project.languages || [],
-                    bio: `Developer on VibeMatch — @${project.author}`,
-                    github_stars: 0,
-                    repos: 0,
-                    match_score: 90,
-                    is_real: true,
-                  }
-                  onOpenMessage?.(authorProfile)
-                }}
-                className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-[10px] font-bold border border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 hover:text-violet-300 transition-all duration-200"
-              >
-                <Users className="w-3.5 h-3.5" />
-                Message
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Collapsed skeleton bar */}
-        {(!project.images || project.images.length === 0) && (
-          <div
-            className={`transition-all duration-300 overflow-hidden ${
-              isHovered ? 'max-h-0 opacity-0' : 'max-h-24 opacity-100'
-            }`}
-          >
-            <CardSkeleton color={accent.from} />
-          </div>
-        )}
-
-        {/* Action Button */}
-        <div className="mt-4 pt-3 border-t border-white/4 flex gap-2">
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onVibe?.(project)
-            }}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-[11px] font-bold border transition-all duration-200 ${
-              isVibed
-                ? 'bg-violet-600/20 border-violet-500/50 text-violet-300 hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-300'
-                : 'bg-white/4 border-white/10 text-text-muted hover:border-violet-500/30 hover:bg-violet-500/5 hover:text-violet-300'
-            }`}
-          >
-            <Zap className={`w-3.5 h-3.5 ${isVibed ? 'fill-violet-400 text-violet-300' : ''}`} />
-            <span>{isVibed ? 'Vibed! ✓' : 'Vibe'}</span>
-          </button>
-
-          {currentUsername && project.author && project.author.toLowerCase() === currentUsername.toLowerCase() && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                if (window.confirm('Are you sure you want to delete this project thought?')) {
-                  onDelete?.(project.id)
-                }
-              }}
-              className="flex items-center justify-center w-9 h-9 rounded-xl border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-all shrink-0"
-              title="Delete thought"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          )}
-        </div>
+        </AnimatePresence>
       </div>
-    </article>
+    </motion.article>
   )
 }
 
@@ -1544,6 +1495,7 @@ export default function App() {
 
   // Layout & sidebar panels states
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [isCreatorPanelOpen, setIsCreatorPanelOpen] = useState(false)
   const [activePanel, setActivePanel] = useState('peers')
   const [searchQuery, setSearchQuery] = useState('')
   const [objectiveFilter, setObjectiveFilter] = useState('all')
@@ -2341,331 +2293,280 @@ export default function App() {
             onGoToFeed={() => setView('feed')}
           />
 
-          <div className="flex flex-1 overflow-hidden">
-            {/* Left sidebar */}
+          <div className="flex flex-1 overflow-hidden relative">
+            {/* Left Column: Developer Roster */}
             {sidebarOpen && (
-              <div className="hidden lg:flex flex-col w-[260px] shrink-0 border-r border-white/6 h-[calc(100vh-57px)] sticky top-[57px] overflow-hidden">
-                <LeftSidebar
-                  ref={sidebarRef}
-                  vibedProjects={vibedProjects}
-                  onUnvibe={handleUnvibe}
-                  connections={connections}
-                  onDisconnect={handleDisconnect}
-                  myName={githubProfile?.name || myUsername}
-                />
-              </div>
-            )}
-
-            {/* Split dashboard workspace */}
-            <div className="flex-1 min-w-0 overflow-auto">
-              <div className="max-w-[1400px] mx-auto px-4 sm:px-6 pt-6 pb-12">
-                
-                {/* Hero section */}
-                <div className="flex items-center justify-between flex-wrap gap-4 mb-6 select-none">
-                  <div>
-                    <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
-                      <span className="gradient-text">Your Teammate Matchmaker</span> 🚀
-                    </h1>
-                    <p className="text-text-muted text-xs mt-1">
-                      {filteredPeers.length} active roster profiles · {filteredProjectsShowroom.length} project thoughts live
-                      <span className="ml-2 text-emerald-400 font-medium text-[10px]">· Tab Broadcast Active</span>
-                    </p>
+              <div className="hidden lg:flex flex-col w-[280px] shrink-0 border-r border-slate-800/60 bg-[#0b0f19]/50 backdrop-blur-xl h-full overflow-hidden">
+                <div className="p-4 border-b border-slate-800/60">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
+                      <Users className="w-4 h-4 text-indigo-400" />
+                    </div>
+                    <div>
+                      <h2 className="text-sm font-bold text-text-primary tracking-wide">Developer Roster</h2>
+                      <p className="text-[10px] text-text-faint">Active platform members</p>
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={handleSimulateRegistration}
+                    disabled={isSimulating}
+                    className="w-full flex justify-center items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-40 transition-all shadow-[0_0_15px_rgba(79,70,229,0.3)] hover:shadow-[0_0_25px_rgba(79,70,229,0.5)]"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    {isSimulating ? 'Simulating...' : 'Simulate User'}
+                  </button>
+                  
+                  <div className="relative mt-4">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-faint" />
+                    <input
+                      type="text"
+                      placeholder="Search dev stack, bio..."
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      className="w-full bg-[#161925] border border-slate-800/60 rounded-xl pl-9 pr-4 py-2.5 text-xs text-text-primary placeholder-text-faint focus:outline-none focus:border-teal-500/50 focus:bg-teal-500/5 transition-all"
+                    />
                   </div>
                 </div>
 
-                <div className="flex flex-col lg:flex-row gap-6">
-                  {/* Peers Network panel (Left side, narrow) */}
-                  <section className="w-full lg:w-[320px] xl:w-[360px] shrink-0" aria-label="Developer Match Roster">
-                    <div className="glass rounded-2xl border border-white/6 p-4 mb-4">
-                      <div className="flex items-center justify-between mb-4 flex-wrap gap-2 select-none">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-lg bg-violet-500/20 border border-violet-500/30 flex items-center justify-center">
-                            <Users className="w-4 h-4 text-violet-400" />
-                          </div>
-                          <div>
-                            <h2 className="text-sm font-bold text-text-primary">Developer Roster</h2>
-                            <p className="text-[10px] text-text-faint">Only active registered profiles</p>
-                          </div>
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  {filteredPeers.length > 0 ? (
+                    filteredPeers.map((profile, i) => (
+                      <div key={profile.id} className="flex items-center gap-3 p-3 rounded-2xl border border-slate-800/60 bg-[#161925]/80 hover:border-indigo-500/30 transition-all group">
+                        <div className="relative shrink-0">
+                          <img
+                            src={profile.avatar || `https://api.dicebear.com/8.x/initials/svg?seed=${profile.github_url}`}
+                            alt="avatar"
+                            className="w-10 h-10 rounded-full border-2 border-slate-800"
+                            onError={(e) => { e.target.src = `https://api.dicebear.com/8.x/initials/svg?seed=${profile.github_url}` }}
+                          />
+                          <span className="absolute bottom-0 right-0 w-3 h-3 bg-teal-400 border-2 border-[#161925] rounded-full shadow-[0_0_8px_rgba(20,184,166,0.5)]"></span>
                         </div>
-
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-xs font-bold text-text-primary truncate group-hover:text-indigo-300 transition-colors">{extractGithubUsername(profile.github_url)}</h4>
+                          <p className="text-[10px] text-teal-400 truncate mt-0.5">{profile.objective}</p>
+                        </div>
                         <button
-                          onClick={handleSimulateRegistration}
-                          disabled={isSimulating}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-40 transition-all"
+                          onClick={(e) => { e.stopPropagation(); handleConnect(profile); }}
+                          className="shrink-0 px-2 py-1 rounded border border-indigo-500/50 text-indigo-400 hover:bg-indigo-500 hover:text-white transition-all text-[9px] font-bold uppercase tracking-wider"
                         >
-                          <UserPlus className="w-3.5 h-3.5" />
-                          {isSimulating ? 'Simulating...' : 'Simulate Registered Profile'}
+                          Connect
                         </button>
                       </div>
-
-                      {/* Search & filters */}
-                      <div className="relative mb-3">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-faint" />
-                        <input
-                          type="text"
-                          placeholder="Search dev stack, bio description..."
-                          value={searchQuery}
-                          onChange={e => setSearchQuery(e.target.value)}
-                          className="w-full bg-surface border border-border rounded-xl pl-9 pr-4 py-2 text-xs text-text-primary placeholder-text-faint focus:outline-none focus:border-violet-500/50 focus:bg-violet-500/5 transition-all"
-                        />
-                      </div>
-
-                      <div className="space-y-1.5 select-none">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[9px] text-text-faint font-semibold uppercase mr-1">Goal:</span>
-                          <button
-                            onClick={() => setObjectiveFilter('all')}
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] border transition-all ${
-                              objectiveFilter === 'all' ? 'bg-violet-600/25 border-violet-500/50 text-violet-300' : 'bg-white/4 border-white/10 text-text-faint'
-                            }`}
-                          >
-                            All
-                          </button>
-                          {OBJECTIVE_OPTIONS.map(o => (
-                            <button
-                              key={o.id}
-                              onClick={() => setObjectiveFilter(o.id)}
-                              className={`px-2.5 py-0.5 rounded-full text-[10px] border transition-all ${
-                                objectiveFilter === o.id ? 'bg-violet-600/25 border-violet-500/50 text-violet-300' : 'bg-white/4 border-white/10 text-text-faint'
-                              }`}
-                            >
-                              {o.emoji} {o.label}
-                            </button>
-                          ))}
-                        </div>
-
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[9px] text-text-faint font-semibold uppercase mr-1">Style:</span>
-                          <button
-                            onClick={() => setWorkstyleFilter('all')}
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] border transition-all ${
-                              workstyleFilter === 'all' ? 'bg-violet-600/25 border-violet-500/50 text-violet-300' : 'bg-white/4 border-white/10 text-text-faint'
-                            }`}
-                          >
-                            All
-                          </button>
-                          {WORKSTYLE_OPTIONS.map(w => (
-                            <button
-                              key={w.id}
-                              onClick={() => setWorkstyleFilter(w.id)}
-                              className={`px-2.5 py-0.5 rounded-full text-[10px] border transition-all ${
-                                workstyleFilter === w.id ? 'bg-violet-600/25 border-violet-500/50 text-violet-300' : 'bg-white/4 border-white/10 text-text-faint'
-                              }`}
-                            >
-                              {w.emoji} {w.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-text-faint text-xs">No active peers found.</p>
                     </div>
+                  )}
+                </div>
+              </div>
+            )}
 
-                    {filteredPeers.length > 0 ? (
-                      <div className="grid grid-cols-1 gap-3">
-                        {filteredPeers.map((profile, i) => (
-                          <PeerCard
-                            key={profile.id}
-                            profile={profile}
-                            index={i}
-                            isConnected={connectedIdSet.has(profile.id)}
-                            onConnect={handleConnect}
-                            onOpenMessage={handleOpenMessage}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-12 bg-surface/20 border border-white/5 rounded-2xl">
-                        <span className="text-2xl">🔍</span>
-                        <p className="text-text-muted text-xs mt-1">No registered roster peers match your filter selection.</p>
-                      </div>
-                    )}
-                  </section>
-
-                  {/* Showroom Projects Panel (Right side, wide, grid of 2 columns) */}
-                  <section className="flex-1 min-w-0" aria-label="Project Showroom">
-                    <div className="glass rounded-2xl border border-white/6 p-4 mb-4 select-none">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-lg bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center">
-                            <Code2 className="w-4 h-4 text-cyan-400" />
-                          </div>
-                          <div>
-                            <h2 className="text-sm font-bold text-text-primary">Project Showroom</h2>
-                            <p className="text-[10px] text-text-faint">Real-time upvotes ranking</p>
-                          </div>
-                        </div>
-                        <span className="text-xs font-bold text-cyan-400 bg-cyan-500/15 px-2 py-1 rounded-lg border border-cyan-500/20">
-                          {filteredProjectsShowroom.length} ideas
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-5">
-                      {filteredProjectsShowroom.map((project, i) => (
-                        <ProjectCard
-                          key={project.id}
-                          project={project}
-                          index={i}
-                          isVibed={vibedIdSet.has(project.id)}
-                          onVibe={handleVibe}
-                          onDelete={handleDeleteThought}
-                          currentUsername={myUsername}
-                          onOpenMessage={handleOpenMessage}
-                          onOpenProjectChat={handleOpenProjectChat}
-                          registeredUsers={registeredUsers}
-                        />
-                      ))}
-
-                      {/* Direct Create Card in Showroom */}
-                      <article className="rounded-2xl border border-white/6 p-5 flex flex-col justify-between bg-surface-strong/95 backdrop-blur-xl relative">
-                        <div>
-                          <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-bold text-text-primary text-sm flex items-center gap-2 select-none">
-                              <Plus className="w-4 h-4 text-violet-400" />
-                              Create
-                            </h3>
-                            <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-white/8 bg-white/4 text-[10px] font-bold text-text-faint select-none">
-                              <TrendingUp className="w-3 h-3" />
-                              <span>Vibes: 3</span>
-                            </div>
-                          </div>
-
-                          {/* Form inputs */}
-                          <div className="space-y-3 mb-4">
-                            <input
-                              type="text"
-                              placeholder="Project Title *"
-                              value={showroomForm.title}
-                              onChange={e => setShowroomForm(f => ({ ...f, title: e.target.value }))}
-                              className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-violet-500/50"
-                            />
-                            
-                            <textarea
-                              placeholder="What conceptual insight or technical hurdle are you hacking through? *"
-                              value={showroomForm.discussion}
-                              onChange={e => setShowroomForm(f => ({ ...f, discussion: e.target.value }))}
-                              rows={2}
-                              className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-xs text-text-primary resize-none focus:outline-none focus:border-violet-500/50"
-                            />
-
-                            <div className="flex flex-col gap-3">
-                              <input
-                                type="text"
-                                placeholder="Tech (comma sep) *"
-                                value={showroomForm.languagesInput}
-                                onChange={e => {
-                                  const val = e.target.value
-                                  setShowroomForm(f => ({
-                                    ...f,
-                                    languagesInput: val,
-                                    languages: val.split(',').map(l => l.trim()).filter(Boolean)
-                                  }))
-                                }}
-                                className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-violet-500/50"
-                              />
-                              <input
-                                type="url"
-                                placeholder="GitHub URL *"
-                                value={showroomForm.github_url}
-                                onChange={e => setShowroomForm(f => ({ ...f, github_url: e.target.value }))}
-                                className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-violet-500/50"
-                              />
-                            </div>
-                          </div>
-
-                          {/* Image upload gallery */}
-                          <div className="p-3.5 rounded-xl bg-surface border border-border">
-                            <p className="text-[10px] text-text-muted font-bold mb-2 select-none">Image upload gallery</p>
-                            
-                            <div className="flex items-center justify-center w-full mb-2.5">
-                              <label className="flex flex-col items-center justify-center w-full h-14 border border-dashed border-white/10 rounded-lg cursor-pointer hover:border-violet-500/50 bg-surface/50 hover:bg-violet-500/5 transition-all">
-                                <div className="flex flex-col items-center justify-center">
-                                  <Plus className="w-4 h-4 text-text-faint mb-0.5" />
-                                  <p className="text-[8px] text-text-muted">Upload project screenshots</p>
-                                </div>
-                                <input
-                                  type="file"
-                                  multiple
-                                  accept="image/*"
-                                  className="hidden"
-                                  onChange={(e) => {
-                                    const files = Array.from(e.target.files || []);
-                                    const promises = files.map(file => {
-                                      return new Promise((resolve) => {
-                                        const reader = new FileReader();
-                                        reader.onload = (event) => resolve(event.target.result);
-                                        reader.readAsDataURL(file);
-                                      });
-                                    });
-                                    Promise.all(promises).then(uploadedImages => {
-                                      setShowroomForm(f => {
-                                        const newImages = [...(f.images || []), ...uploadedImages];
-                                        const newCover = f.cover_image || newImages[0] || '';
-                                        return { ...f, images: newImages, cover_image: newCover };
-                                      });
-                                    });
-                                  }}
-                                />
-                              </label>
-                            </div>
-
-                            {showroomForm.images && showroomForm.images.length > 0 && (
-                              <div>
-                                <div className="grid grid-cols-4 gap-1.5 mb-2">
-                                  {showroomForm.images.map((img, idx) => {
-                                    const isCover = showroomForm.cover_image === img;
-                                    return (
-                                      <div
-                                        key={idx}
-                                        onClick={() => setShowroomForm(f => ({ ...f, cover_image: img }))}
-                                        className={`relative aspect-square rounded-lg overflow-hidden border cursor-pointer hover:border-violet-500 transition-all ${
-                                          isCover ? 'border-violet-500 ring-2 ring-violet-500/25' : 'border-white/10'
-                                        }`}
-                                      >
-                                        <img src={img} className="w-full h-full object-cover" alt={`thumbnail-${idx}`} />
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                                <div className="flex items-center gap-1.5 text-[9px] text-text-faint mt-1.5 select-none">
-                                  <input type="radio" checked={!!showroomForm.cover_image} readOnly className="accent-violet-500" />
-                                  <span>Select picture</span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="mt-4 pt-3 border-t border-white/4">
-                          <button
-                            onClick={handleCreateFromShowroom}
-                            disabled={isPublishingFromShowroom}
-                            className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-violet-600 to-indigo-500 hover:from-violet-700 hover:to-indigo-600 disabled:opacity-50 transition-all shadow-md"
-                          >
-                            {isPublishingFromShowroom ? 'Publishing...' : 'Create'}
-                          </button>
-                        </div>
-                      </article>
-                    </div>
-                  </section>
-
-                  {/* Right Sidebar Panel: Collaborator Communications */}
-                  <section className="w-full lg:w-[320px] xl:w-[360px] shrink-0" aria-label="Collaborator Communications">
-                    <CollaboratorChat
-                      activeConversation={activeConversation}
-                      setActiveConversation={setActiveConversation}
-                      messages={messages}
-                      sendMessage={sendMessage}
-                      myUsername={myUsername}
-                      registeredUsers={registeredUsers}
-                      connections={connections}
-                    />
-                  </section>
+            {/* Center Column: Project Showroom */}
+            <div className="flex-1 min-w-0 overflow-auto scroll-smooth">
+              <div className="max-w-[800px] mx-auto px-4 sm:px-6 pt-6 pb-24">
+                <div className="flex items-center justify-between mb-8">
+                  <div>
+                    <h1 className="text-2xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-teal-400">
+                      Project Showroom
+                    </h1>
+                    <p className="text-text-muted text-xs mt-1 tracking-wide">
+                      {filteredProjectsShowroom.length} real-time ideas broadcasting
+                    </p>
+                  </div>
+                  <div className="px-3 py-1.5 rounded-full border border-teal-500/20 bg-teal-500/10 text-teal-300 text-[10px] font-bold tracking-wider uppercase flex items-center gap-1.5 shadow-[0_0_15px_rgba(20,184,166,0.15)]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse"></span>
+                    Live Sync
+                  </div>
                 </div>
 
+                <div className="flex flex-col gap-6">
+                  <AnimatePresence>
+                    {filteredProjectsShowroom.map((project, i) => (
+                      <ProjectCard
+                        key={project.id}
+                        project={project}
+                        index={i}
+                        isVibed={vibedIdSet.has(project.id)}
+                        onVibe={handleVibe}
+                        onDelete={handleDeleteThought}
+                        currentUsername={myUsername}
+                        onOpenMessage={handleOpenMessage}
+                        onOpenProjectChat={handleOpenProjectChat}
+                        registeredUsers={registeredUsers}
+                      />
+                    ))}
+                  </AnimatePresence>
+                </div>
               </div>
             </div>
+
+            {/* Right Column: Expandable Creator Control Panel / Side Sheet */}
+            <motion.div
+              layout
+              initial={{ width: 64 }}
+              animate={{ width: isCreatorPanelOpen ? 380 : 64 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="shrink-0 border-l border-slate-800/60 bg-[#161925]/95 backdrop-blur-2xl h-full flex flex-col z-20 shadow-[-10px_0_30px_rgba(0,0,0,0.5)] overflow-hidden"
+            >
+              {isCreatorPanelOpen ? (
+                <div className="w-[380px] flex flex-col h-full opacity-0 animate-fade-in delay-100">
+                  <div className="p-5 border-b border-slate-800/60 flex items-center justify-between bg-[#0b0f19]/30">
+                    <h2 className="text-sm font-black text-text-primary flex items-center gap-2 uppercase tracking-wide">
+                      <Sparkles className="w-4 h-4 text-indigo-400" />
+                      Creator Panel
+                    </h2>
+                    <button onClick={() => setIsCreatorPanelOpen(false)} className="p-1.5 rounded-lg hover:bg-white/5 text-text-faint hover:text-white transition-colors">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  
+                  <div className="flex-1 overflow-y-auto p-5 scrollbar-thin">
+                    <h3 className="text-xs font-bold text-text-muted mb-4 uppercase tracking-wider">New Project Thought</h3>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-[10px] font-bold text-text-faint uppercase tracking-wider mb-1.5">Project Title</label>
+                        <input
+                          type="text"
+                          value={showroomForm.title}
+                          onChange={e => setShowroomForm(f => ({ ...f, title: e.target.value }))}
+                          className="w-full bg-[#0b0f19] border border-slate-800/60 rounded-xl px-4 py-2.5 text-xs text-text-primary focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition-all"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-[10px] font-bold text-text-faint uppercase tracking-wider mb-1.5">Conceptual Insight</label>
+                        <textarea
+                          value={showroomForm.discussion}
+                          onChange={e => setShowroomForm(f => ({ ...f, discussion: e.target.value }))}
+                          rows={4}
+                          className="w-full bg-[#0b0f19] border border-slate-800/60 rounded-xl px-4 py-2.5 text-xs text-text-primary resize-none focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition-all"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-text-faint uppercase tracking-wider mb-1.5">Tech Stack (Comma Sep)</label>
+                        <input
+                          type="text"
+                          value={showroomForm.languagesInput}
+                          onChange={e => {
+                            const val = e.target.value
+                            setShowroomForm(f => ({
+                              ...f,
+                              languagesInput: val,
+                              languages: val.split(',').map(l => l.trim()).filter(Boolean)
+                            }))
+                          }}
+                          className="w-full bg-[#0b0f19] border border-slate-800/60 rounded-xl px-4 py-2.5 text-xs text-text-primary focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition-all"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-text-faint uppercase tracking-wider mb-1.5">GitHub URL</label>
+                        <input
+                          type="url"
+                          value={showroomForm.github_url}
+                          onChange={e => setShowroomForm(f => ({ ...f, github_url: e.target.value }))}
+                          className="w-full bg-[#0b0f19] border border-slate-800/60 rounded-xl px-4 py-2.5 text-xs text-text-primary focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition-all"
+                        />
+                      </div>
+
+                      {/* Image upload gallery */}
+                      <div className="p-4 rounded-xl bg-[#0b0f19] border border-slate-800/60">
+                        <p className="text-[10px] font-bold text-text-faint uppercase tracking-wider mb-3">Cover Assets</p>
+                        <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed border-slate-700/50 rounded-xl cursor-pointer hover:border-indigo-500/50 bg-[#161925]/50 hover:bg-indigo-500/5 transition-all">
+                          <Plus className="w-5 h-5 text-indigo-400 mb-1" />
+                          <p className="text-[9px] text-text-muted font-bold tracking-wide">CLICK TO UPLOAD</p>
+                          <input
+                            type="file"
+                            multiple
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const files = Array.from(e.target.files || []);
+                              const promises = files.map(file => {
+                                return new Promise((resolve) => {
+                                  const reader = new FileReader();
+                                  reader.onload = (event) => resolve(event.target.result);
+                                  reader.readAsDataURL(file);
+                                });
+                              });
+                              Promise.all(promises).then(uploadedImages => {
+                                setShowroomForm(f => {
+                                  const newImages = [...(f.images || []), ...uploadedImages];
+                                  const newCover = f.cover_image || newImages[0] || '';
+                                  return { ...f, images: newImages, cover_image: newCover };
+                                });
+                              });
+                            }}
+                          />
+                        </label>
+
+                        {showroomForm.images && showroomForm.images.length > 0 && (
+                          <div className="mt-3">
+                            <div className="grid grid-cols-4 gap-2">
+                              {showroomForm.images.map((img, idx) => {
+                                const isCover = showroomForm.cover_image === img;
+                                return (
+                                  <div
+                                    key={idx}
+                                    onClick={() => setShowroomForm(f => ({ ...f, cover_image: img }))}
+                                    className={`relative aspect-square rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
+                                      isCover ? 'border-indigo-500 shadow-[0_0_10px_rgba(79,70,229,0.5)] scale-105' : 'border-transparent hover:border-slate-600'
+                                    }`}
+                                  >
+                                    <img src={img} className="w-full h-full object-cover" alt={`thumbnail-${idx}`} />
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="p-5 border-t border-slate-800/60 bg-[#0b0f19]/80">
+                    <button
+                      onClick={handleCreateFromShowroom}
+                      disabled={isPublishingFromShowroom}
+                      className="w-full py-3.5 rounded-xl text-xs font-black uppercase tracking-widest text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 transition-all shadow-[0_0_20px_rgba(79,70,229,0.3)] hover:shadow-[0_0_30px_rgba(79,70,229,0.5)] flex justify-center items-center gap-2"
+                    >
+                      {isPublishingFromShowroom ? 'Publishing...' : 'Deploy Thought'}
+                      {!isPublishingFromShowroom && <Send className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="w-16 flex flex-col items-center py-6 h-full gap-8 bg-[#0b0f19]/30">
+                  <button onClick={() => setIsCreatorPanelOpen(true)} className="w-10 h-10 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shadow-[0_0_15px_rgba(79,70,229,0.4)] transition-all hover:scale-110 group relative">
+                    <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+                  </button>
+                  
+                  <div className="flex flex-col gap-6 items-center flex-1">
+                    <div className="p-2 rounded-xl text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 cursor-pointer hover:bg-indigo-500/20 transition-colors">
+                      <LayoutDashboard className="w-5 h-5" />
+                    </div>
+                    <div className="p-2 rounded-xl text-text-faint hover:text-teal-400 hover:bg-teal-500/10 cursor-pointer transition-colors relative">
+                      <MessageSquare className="w-5 h-5" />
+                      {messages.length > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-teal-400 rounded-full"></span>}
+                    </div>
+                    <div className="p-2 rounded-xl text-text-faint hover:text-white cursor-pointer transition-colors">
+                      <Camera className="w-5 h-5" />
+                    </div>
+                  </div>
+                  
+                  <div className="p-2 rounded-xl text-text-faint hover:text-white cursor-pointer transition-colors mb-4">
+                    <Settings className="w-5 h-5" />
+                  </div>
+                </div>
+              )}
+            </motion.div>
           </div>
         </div>
+
       )}
 
       {view === 'feed' && userProfile && (

@@ -7,12 +7,12 @@ export default {
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },
       colors: {
-        base: '#0a0a0f',
-        surface: '#12121a',
-        card: '#1a1a2e',
-        'card-hover': '#1f1f35',
-        border: '#2a2a3e',
-        'border-bright': '#3a3a5c',
+        base: '#0b0f19',
+        surface: '#131520',
+        card: '#161925',
+        'card-hover': '#1b1f2e',
+        border: '#1e293b',
+        'border-bright': '#334155',
         violet: {
           DEFAULT: '#7c3aed',
           light: '#8b5cf6',
@@ -22,6 +22,12 @@ export default {
         indigo: {
           DEFAULT: '#4f46e5',
           light: '#6366f1',
+          dark: '#3730a3',
+          glow: 'rgba(79,70,229,0.3)',
+        },
+        teal: {
+          DEFAULT: '#14b8a6',
+          glow: 'rgba(20,184,166,0.3)'
         },
         cyan: {
           DEFAULT: '#06b6d4',
@@ -29,19 +35,19 @@ export default {
           glow: 'rgba(6,182,212,0.2)',
         },
         text: {
-          primary: '#f1f5f9',
+          primary: '#f8fafc',
           muted: '#94a3b8',
           faint: '#475569',
         },
-        success: '#22c55e',
+        success: '#10b981',
         warning: '#f59e0b',
         error: '#ef4444',
       },
       backgroundImage: {
-        'gradient-brand': 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #06b6d4 100%)',
-        'gradient-card': 'linear-gradient(135deg, rgba(124,58,237,0.1) 0%, rgba(79,70,229,0.05) 100%)',
-        'gradient-surface': 'linear-gradient(180deg, #12121a 0%, #0a0a0f 100%)',
-        'mesh-glow': 'radial-gradient(ellipse at 20% 50%, rgba(124,58,237,0.15) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(6,182,212,0.1) 0%, transparent 50%)',
+        'gradient-brand': 'linear-gradient(135deg, #4f46e5 0%, #14b8a6 100%)',
+        'gradient-card': 'linear-gradient(135deg, rgba(79,70,229,0.1) 0%, rgba(20,184,166,0.05) 100%)',
+        'gradient-surface': 'linear-gradient(180deg, #131520 0%, #0b0f19 100%)',
+        'mesh-glow': 'radial-gradient(ellipse at 20% 50%, rgba(79,70,229,0.15) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(20,184,166,0.1) 0%, transparent 50%)',
       },
       animation: {
         'fade-up': 'fadeUp 0.5s ease forwards',
