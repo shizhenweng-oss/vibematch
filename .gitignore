@@ -1,0 +1,22 @@
+# Dependency directories
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Local databases
+vibematch.db
+vibematch.db-journal
+
+# Build outputs
+dist/
+build/
+
+# IDE and OS files
+.DS_Store
+.idea/
+.vscode/
+
+# Local session files
+.eslintcache
