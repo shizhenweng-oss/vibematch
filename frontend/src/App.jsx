@@ -9,7 +9,10 @@ import {
 import axios from 'axios'
 import { motion, AnimatePresence } from 'framer-motion'
 import { readSession, saveSession, clearSession } from './hooks/useSession.js'
-import { loadVibes, saveVibes, loadConnections, saveConnections, loadMessages, saveMessages } from './hooks/usePersistence.js'
+import {
+  loadVibes, saveVibes, loadConnections, saveConnections, loadMessages, saveMessages,
+  getLocalUsers, saveLocalUser, getLocalThoughts, saveLocalThought, deleteLocalThought, getLocalMessages, saveLocalMessage
+} from './hooks/usePersistence.js'
 
 // ── Deterministic tag color generator ───────────────────────────────────────
 export function getTagColor(str) {
@@ -1590,19 +1593,32 @@ export default function App() {
 
   // Unified Synchronization Hook: SQLite DB fetch + BroadcastChannel subscriptions
   const syncRegistry = useCallback(async () => {
+    let hasLoadedPeers = false
     try {
       const peersRes = await axios.get(`/api/users/peers?exclude=${encodeURIComponent(myUsername)}&limit=40`)
       if (peersRes.data?.peers) {
         setRegisteredUsers(peersRes.data.peers)
+        hasLoadedPeers = true
       }
     } catch {}
 
+    if (!hasLoadedPeers) {
+      const localUsers = getLocalUsers().filter(u => u.id.replace('real_', '').toLowerCase() !== myUsername.toLowerCase())
+      setRegisteredUsers(localUsers)
+    }
+
+    let hasLoadedThoughts = false
     try {
       const thoughtsRes = await axios.get('/api/thoughts')
       if (thoughtsRes.data) {
         setProjectThoughts(thoughtsRes.data)
+        hasLoadedThoughts = true
       }
     } catch {}
+
+    if (!hasLoadedThoughts) {
+      setProjectThoughts(getLocalThoughts())
+    }
   }, [myUsername])
 
   const handleSyncEvent = useCallback((type, payload) => {
@@ -1714,6 +1730,7 @@ export default function App() {
     if (!myUsername || !activeConversation) return
     
     const loadHistory = async () => {
+      let loadedHistory = false
       try {
         let url = '/api/messages?'
         if (activeConversation.type === 'project') {
@@ -1740,9 +1757,38 @@ export default function App() {
             merged.sort((a, b) => a.timestamp - b.timestamp)
             return merged
           })
+          loadedHistory = true
         }
       } catch (err) {
-        console.error('Failed to load message history:', err)
+        console.error('Failed to load message history from backend:', err)
+      }
+
+      if (!loadedHistory) {
+        const allLocal = getLocalMessages()
+        let filtered = []
+        if (activeConversation.type === 'project') {
+          filtered = allLocal.filter(m => m.project_id === activeConversation.project.id)
+        } else if (activeConversation.type === 'dm') {
+          const peerUser = activeConversation.peer.id.replace('real_', '').toLowerCase()
+          filtered = allLocal.filter(m => 
+            !m.project_id && (
+              (m.sender_id.toLowerCase() === myUsername.toLowerCase() && m.recipient_id?.toLowerCase() === peerUser) ||
+              (m.sender_id.toLowerCase() === peerUser && m.recipient_id?.toLowerCase() === myUsername.toLowerCase())
+            )
+          )
+        }
+        
+        setMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id))
+          const merged = [...prev]
+          filtered.forEach(m => {
+            if (!existingIds.has(m.id)) {
+              merged.push(m)
+            }
+          })
+          merged.sort((a, b) => a.timestamp - b.timestamp)
+          return merged
+        })
       }
     }
     
@@ -1827,18 +1873,25 @@ export default function App() {
       payload.recipient_id = activeConversation.peer.id.replace('real_', '')
     }
     
+    // Save to local cache fallback immediately
+    saveLocalMessage(payload)
+
+    // Insert locally immediately for zero-latency UI
+    setMessages(prev => {
+      if (prev.some(m => m.id === payload.id)) return prev
+      return [...prev, payload]
+    })
+
     try {
-      await axios.post('/api/messages', payload)
-      setMessages(prev => {
-        if (prev.some(m => m.id === payload.id)) return prev
-        return [...prev, payload]
-      })
-      
       const channel = new BroadcastChannel('vibematch_broadcast')
       channel.postMessage({ type: 'MESSAGE_RECEIVED', payload })
       channel.close()
+    } catch {}
+
+    try {
+      await axios.post('/api/messages', payload)
     } catch (err) {
-      console.error('Failed to send message:', err)
+      console.error('Failed to send message to backend:', err)
     }
   }, [myUsername, activeConversation])
 
@@ -1895,6 +1948,9 @@ export default function App() {
       is_me: true,
       is_real: true,
     }
+
+    // Save user profile to local storage cache for fallbacks
+    saveLocalUser(userObj)
 
     // Post to db and broadcast
     try {
@@ -1958,6 +2014,8 @@ export default function App() {
       }
     }
 
+    saveLocalUser(peerObj)
+
     try {
       await axios.post('/api/onboard', payload)
       // Broadcast registration
@@ -1980,17 +2038,30 @@ export default function App() {
 
   // Publish thought from the feed
   const handlePublishThought = async (newThought) => {
+    // Save thought to local storage fallback cache
+    saveLocalThought(newThought)
+
     try {
       await axios.post('/api/thoughts', newThought)
       const channel = new BroadcastChannel('vibematch_broadcast')
       channel.postMessage({ type: 'THOUGHT_POSTED', payload: newThought })
       channel.close()
 
-      setProjectThoughts(prev => [newThought, ...prev])
+      setProjectThoughts(prev => {
+        if (prev.some(t => t.id === newThought.id)) {
+          return prev.map(t => t.id === newThought.id ? newThought : t)
+        }
+        return [newThought, ...prev]
+      })
     } catch (err) {
       console.error('Publish thought failed:', err)
       // Fallback
-      setProjectThoughts(prev => [newThought, ...prev])
+      setProjectThoughts(prev => {
+        if (prev.some(t => t.id === newThought.id)) {
+          return prev.map(t => t.id === newThought.id ? newThought : t)
+        }
+        return [newThought, ...prev]
+      })
     }
   }
 
@@ -2042,6 +2113,9 @@ export default function App() {
 
   // Delete a project thought
   const handleDeleteThought = async (thoughtId) => {
+    // Permanent deletion in local cache fallback
+    deleteLocalThought(thoughtId)
+
     try {
       await axios.delete(`/api/thoughts/${thoughtId}?username=${encodeURIComponent(myUsername)}`)
       const channel = new BroadcastChannel('vibematch_broadcast')
@@ -2074,10 +2148,14 @@ export default function App() {
       newStars = Math.max(0, (project.stars ?? 0) - 1)
     }
 
+    // Save/update to local cache fallback immediately
+    saveLocalThought({ ...project, stars: newStars })
+
     try {
       const res = await axios.get(`/api/vibe?project_id=${project.id}&username=${encodeURIComponent(myUsername)}`)
       if (res.data?.stars !== undefined) {
         newStars = res.data.stars
+        saveLocalThought({ ...project, stars: newStars })
       }
     } catch {}
 
