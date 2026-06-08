@@ -484,7 +484,7 @@ function PeerCard({ profile, isConnected = false, onConnect, onOpenMessage, inde
 }
 
 // ── PROJECT CARD COMPONENT (UPDATED: Media pipeline, cover image, thumbnail grid) ──
-function ProjectCard({ project, isVibed = false, onVibe, onDelete, currentUsername, index = 0 }) {
+function ProjectCard({ project, isVibed = false, onVibe, onDelete, currentUsername, onOpenMessage, onOpenProjectChat, registeredUsers, index = 0 }) {
   const [isHovered, setIsHovered] = useState(false)
   const primaryTech = project.languages?.[0] || 'Tech'
   const accent = getTagColor(primaryTech)
@@ -639,6 +639,48 @@ function ProjectCard({ project, isVibed = false, onVibe, onDelete, currentUserna
               <Link2 className="w-3.5 h-3.5 ml-auto" />
             </a>
           )}
+
+          {/* Real-time Collaboration Chat Shortcuts */}
+          <div className="grid grid-cols-2 gap-2 mt-2 select-none">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpenProjectChat?.(project)
+              }}
+              className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-[10px] font-bold border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 hover:text-cyan-300 transition-all duration-200"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              Discuss
+            </button>
+            
+            {project.author && project.author.toLowerCase() !== currentUsername?.toLowerCase() && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const authorProfile = registeredUsers?.find(u => u.id.replace('real_', '').toLowerCase() === project.author.toLowerCase()) || {
+                    id: `real_${project.author}`,
+                    name: project.author,
+                    avatar: project.avatar || `https://api.dicebear.com/8.x/initials/svg?seed=${project.author}`,
+                    github_url: project.github_url || `https://github.com/${project.author}`,
+                    linkedin_id: '',
+                    objective: '',
+                    workstyle: '',
+                    skills: project.languages || [],
+                    bio: `Developer on VibeMatch — @${project.author}`,
+                    github_stars: 0,
+                    repos: 0,
+                    match_score: 90,
+                    is_real: true,
+                  }
+                  onOpenMessage?.(authorProfile)
+                }}
+                className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-[10px] font-bold border border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 hover:text-violet-300 transition-all duration-200"
+              >
+                <Users className="w-3.5 h-3.5" />
+                Message
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Collapsed skeleton bar */}
@@ -1472,6 +1514,12 @@ const EMPTY_FORM = {
   cover_image: '',
 }
 
+const RealtimeSyncContext = React.createContext(null)
+
+export function useRealtimeSync() {
+  return React.useContext(RealtimeSyncContext)
+}
+
 // ── ROOT APP MVP WORKSPACE (Real-Time Synced) ──
 export default function App() {
   const [view, setView] = useState('loading')
@@ -1482,6 +1530,13 @@ export default function App() {
   // Real-time reactive data states
   const [registeredUsers, setRegisteredUsers] = useState([])
   const [projectThoughts, setProjectThoughts] = useState([])
+
+  // Live Chat and WS Synced States
+  const [messages, setMessages] = useState([])
+  const [activeConversation, setActiveConversation] = useState(null)
+  const [isConnected, setIsConnected] = useState(false)
+  const wsRef = useRef(null)
+  const reconnectTimeoutRef = useRef(null)
 
   // Layout & sidebar panels states
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -1550,6 +1605,243 @@ export default function App() {
     } catch {}
   }, [myUsername])
 
+  const handleSyncEvent = useCallback((type, payload) => {
+    if (type === 'USER_REGISTERED') {
+      setRegisteredUsers(prev => {
+        if (prev.some(u => u.id === payload.id)) {
+          return prev.map(u => u.id === payload.id ? payload : u)
+        }
+        return [payload, ...prev]
+      })
+    } else if (type === 'THOUGHT_POSTED') {
+      setProjectThoughts(prev => {
+        if (prev.some(t => t.id === payload.id)) {
+          return prev.map(t => t.id === payload.id ? payload : t)
+        }
+        return [payload, ...prev]
+      })
+    } else if (type === 'THOUGHT_DELETED') {
+      setProjectThoughts(prev => prev.filter(t => t.id !== payload.thoughtId))
+      setVibedProjects(prev => {
+        const updated = prev.filter(t => t.id !== payload.thoughtId)
+        saveVibes(updated)
+        return updated
+      })
+    } else if (type === 'THOUGHT_VIBED') {
+      setProjectThoughts(prev => prev.map(t => t.id === payload.thoughtId ? { ...t, stars: payload.stars } : t))
+      setVibedProjects(prev => {
+        const updated = prev.map(t => t.id === payload.thoughtId ? { ...t, stars: payload.stars } : t)
+        saveVibes(updated)
+        return updated
+      })
+    } else if (type === 'MESSAGE_RECEIVED') {
+      setMessages(prev => {
+        if (prev.some(m => m.id === payload.id)) return prev
+        return [...prev, payload]
+      })
+    }
+  }, [])
+
+  const connectWebSocket = useCallback(() => {
+    if (!myUsername) return
+    if (wsRef.current) return
+    
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const host = window.location.host
+    const wsHost = host.includes('5173') ? 'localhost:8000' : host
+    const wsUrl = `${protocol}//${wsHost}/api/ws/${myUsername}`
+    
+    console.log(`Connecting to WebSocket: ${wsUrl}`)
+    const ws = new WebSocket(wsUrl)
+    wsRef.current = ws
+    
+    ws.onopen = () => {
+      console.log('WebSocket Connected!')
+      setIsConnected(true)
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current)
+        reconnectTimeoutRef.current = null
+      }
+    }
+    
+    ws.onmessage = (event) => {
+      try {
+        const { type, payload } = JSON.parse(event.data)
+        console.log('WS Msg received:', type, payload)
+        
+        const channel = new BroadcastChannel('vibematch_broadcast')
+        channel.postMessage({ type, payload })
+        channel.close()
+        
+        handleSyncEvent(type, payload)
+      } catch (err) {
+        console.error('Error handling WebSocket message:', err)
+      }
+    }
+    
+    ws.onclose = (event) => {
+      console.log('WebSocket Closed:', event)
+      setIsConnected(false)
+      wsRef.current = null
+      
+      reconnectTimeoutRef.current = setTimeout(() => {
+        connectWebSocket()
+      }, 3000)
+    }
+    
+    ws.onerror = (err) => {
+      console.error('WebSocket Error:', err)
+      ws.close()
+    }
+  }, [myUsername, handleSyncEvent])
+
+  useEffect(() => {
+    if (myUsername) {
+      connectWebSocket()
+    }
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close()
+        wsRef.current = null
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current)
+      }
+    }
+  }, [myUsername, connectWebSocket])
+
+  useEffect(() => {
+    if (!myUsername || !activeConversation) return
+    
+    const loadHistory = async () => {
+      try {
+        let url = '/api/messages?'
+        if (activeConversation.type === 'project') {
+          url += `project_id=${encodeURIComponent(activeConversation.project.id)}`
+        } else if (activeConversation.type === 'dm') {
+          url += `sender=${encodeURIComponent(myUsername)}&recipient=${encodeURIComponent(activeConversation.peer.id.replace('real_', ''))}`
+        }
+        
+        const res = await axios.get(url)
+        if (res.data) {
+          setMessages(prev => {
+            const incoming = res.data
+            const existingIds = new Set()
+            const merged = []
+            prev.forEach(m => {
+              existingIds.add(m.id)
+              merged.push(m)
+            })
+            incoming.forEach(m => {
+              if (!existingIds.has(m.id)) {
+                merged.push(m)
+              }
+            })
+            merged.sort((a, b) => a.timestamp - b.timestamp)
+            return merged
+          })
+        }
+      } catch (err) {
+        console.error('Failed to load message history:', err)
+      }
+    }
+    
+    loadHistory()
+  }, [myUsername, activeConversation])
+
+  useEffect(() => {
+    if (!myUsername) return
+    
+    const syncShowcase = async () => {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return
+      
+      try {
+        const peersRes = await axios.get(`/api/users/peers?exclude=${encodeURIComponent(myUsername)}&limit=40`)
+        if (peersRes.data?.peers) {
+          setRegisteredUsers(peersRes.data.peers)
+        }
+      } catch {}
+      
+      try {
+        const thoughtsRes = await axios.get('/api/thoughts')
+        if (thoughtsRes.data) {
+          setProjectThoughts(thoughtsRes.data)
+        }
+      } catch {}
+    }
+    
+    const syncActiveChat = async () => {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return
+      if (!activeConversation) return
+      
+      try {
+        let url = '/api/messages?'
+        if (activeConversation.type === 'project') {
+          url += `project_id=${encodeURIComponent(activeConversation.project.id)}`
+        } else if (activeConversation.type === 'dm') {
+          url += `sender=${encodeURIComponent(myUsername)}&recipient=${encodeURIComponent(activeConversation.peer.id.replace('real_', ''))}`
+        }
+        
+        const res = await axios.get(url)
+        if (res.data) {
+          setMessages(prev => {
+            const incoming = res.data
+            const existingIds = new Set(prev.map(m => m.id))
+            const newMsgs = incoming.filter(m => !existingIds.has(m.id))
+            if (newMsgs.length > 0) {
+              return [...prev, ...newMsgs]
+            }
+            return prev
+          })
+        }
+      } catch {}
+    }
+
+    const showcaseInterval = setInterval(syncShowcase, 5000)
+    const chatInterval = setInterval(syncActiveChat, 3000)
+    
+    if (activeConversation) {
+      syncActiveChat()
+    }
+    
+    return () => {
+      clearInterval(showcaseInterval)
+      clearInterval(chatInterval)
+    }
+  }, [myUsername, activeConversation, isConnected])
+
+  const sendMessage = useCallback(async (text) => {
+    if (!text.trim() || !myUsername || !activeConversation) return
+    
+    const messageId = `msg_${Math.random().toString(36).substr(2, 9)}_${Date.now()}`
+    const payload = {
+      id: messageId,
+      sender_id: myUsername,
+      message_text: text,
+      timestamp: Date.now() / 1000,
+    }
+    
+    if (activeConversation.type === 'project') {
+      payload.project_id = activeConversation.project.id
+    } else if (activeConversation.type === 'dm') {
+      payload.recipient_id = activeConversation.peer.id.replace('real_', '')
+    }
+    
+    try {
+      await axios.post('/api/messages', payload)
+      setMessages(prev => {
+        if (prev.some(m => m.id === payload.id)) return prev
+        return [...prev, payload]
+      })
+      
+      const channel = new BroadcastChannel('vibematch_broadcast')
+      channel.postMessage({ type: 'MESSAGE_RECEIVED', payload })
+      channel.close()
+    } catch (err) {
+      console.error('Failed to send message:', err)
+    }
+  }, [myUsername, activeConversation])
+
   useEffect(() => {
     const session = readSession()
     if (session?.userProfile) {
@@ -1571,49 +1863,13 @@ export default function App() {
     const channel = new BroadcastChannel('vibematch_broadcast')
     channel.onmessage = (event) => {
       const { type, payload } = event.data
-      if (type === 'USER_REGISTERED') {
-        setRegisteredUsers(prev => {
-          if (prev.some(u => u.id === payload.id)) return prev
-          return [payload, ...prev]
-        })
-      } else if (type === 'THOUGHT_POSTED') {
-        setProjectThoughts(prev => {
-          if (prev.some(t => t.id === payload.id)) return prev
-          return [payload, ...prev]
-        })
-      } else if (type === 'THOUGHT_VIBED') {
-        setProjectThoughts(prev => {
-          return prev.map(t => {
-            if (t.id === payload.thoughtId) {
-              return { ...t, stars: payload.stars }
-            }
-            return t
-          })
-        })
-        setVibedProjects(prev => {
-          const updated = prev.map(p => {
-            if (p.id === payload.thoughtId) {
-              return { ...p, stars: payload.stars }
-            }
-            return p
-          })
-          saveVibes(updated)
-          return updated
-        })
-      } else if (type === 'THOUGHT_DELETED') {
-        setProjectThoughts(prev => prev.filter(t => t.id !== payload.thoughtId))
-        setVibedProjects(prev => {
-          const updated = prev.filter(p => p.id !== payload.thoughtId)
-          saveVibes(updated)
-          return updated
-        })
-      }
+      handleSyncEvent(type, payload)
     }
 
     return () => {
       channel.close()
     }
-  }, [userProfile, syncRegistry])
+  }, [userProfile, syncRegistry, handleSyncEvent])
 
   // Onboarding registration handler
   const handleOnboardingComplete = async (profile, matches, ghProfile) => {
@@ -1884,14 +2140,12 @@ export default function App() {
     })
   }, [])
 
-  const sidebarRef = useRef(null)
   const handleOpenMessage = useCallback((profile) => {
-    setSidebarOpen(true)
-    setTimeout(() => {
-      if (sidebarRef.current) {
-        sidebarRef.current.openThread(profile.id)
-      }
-    }, 50)
+    setActiveConversation({ type: 'dm', peer: profile })
+  }, [])
+
+  const handleOpenProjectChat = useCallback((project) => {
+    setActiveConversation({ type: 'project', project })
   }, [])
 
   const handleSignOut = () => {
@@ -1977,8 +2231,22 @@ export default function App() {
     )
   }
 
+  const syncValue = useMemo(() => ({
+    registeredUsers,
+    projectThoughts,
+    messages,
+    activeConversation,
+    setActiveConversation,
+    isConnected,
+    sendMessage,
+    handlePublishThought,
+    handleDeleteThought,
+    handleVibe
+  }), [registeredUsers, projectThoughts, messages, activeConversation, isConnected, sendMessage, handlePublishThought, handleDeleteThought, handleVibe])
+
   return (
-    <>
+    <RealtimeSyncContext.Provider value={syncValue}>
+      <>
       {view === 'onboarding' && (
         <OnboardingWizard onComplete={handleOnboardingComplete} />
       )}
@@ -2162,6 +2430,9 @@ export default function App() {
                           onVibe={handleVibe}
                           onDelete={handleDeleteThought}
                           currentUsername={myUsername}
+                          onOpenMessage={handleOpenMessage}
+                          onOpenProjectChat={handleOpenProjectChat}
+                          registeredUsers={registeredUsers}
                         />
                       ))}
 
@@ -2297,6 +2568,19 @@ export default function App() {
                       </article>
                     </div>
                   </section>
+
+                  {/* Right Sidebar Panel: Collaborator Communications */}
+                  <section className="w-full lg:w-[320px] xl:w-[360px] shrink-0" aria-label="Collaborator Communications">
+                    <CollaboratorChat
+                      activeConversation={activeConversation}
+                      setActiveConversation={setActiveConversation}
+                      messages={messages}
+                      sendMessage={sendMessage}
+                      myUsername={myUsername}
+                      registeredUsers={registeredUsers}
+                      connections={connections}
+                    />
+                  </section>
                 </div>
 
               </div>
@@ -2318,6 +2602,215 @@ export default function App() {
           onBack={() => setView('dashboard')}
         />
       )}
-    </>
+      </>
+    </RealtimeSyncContext.Provider>
   )
 }
+
+
+// ── COLLABORATOR COMMUNICATIONS CHAT PANEL ──
+function CollaboratorChat({
+  activeConversation,
+  setActiveConversation,
+  messages,
+  sendMessage,
+  myUsername,
+  registeredUsers,
+  connections
+}) {
+  const [inputText, setInputText] = useState('')
+  const messagesEndRef = useRef(null)
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  const handleSend = () => {
+    if (!inputText.trim()) return
+    sendMessage(inputText)
+    setInputText('')
+  }
+
+  const filteredMessages = useMemo(() => {
+    if (!activeConversation) return []
+    if (activeConversation.type === 'project') {
+      return messages.filter(m => m.project_id === activeConversation.project.id)
+    }
+    if (activeConversation.type === 'dm') {
+      const peerUsername = activeConversation.peer.id.replace('real_', '').toLowerCase()
+      return messages.filter(m => 
+        !m.project_id && (
+          (m.sender_id.toLowerCase() === myUsername.toLowerCase() && m.recipient_id?.toLowerCase() === peerUsername) ||
+          (m.sender_id.toLowerCase() === peerUsername && m.recipient_id?.toLowerCase() === myUsername.toLowerCase())
+        )
+      )
+    }
+    return []
+  }, [messages, activeConversation, myUsername])
+
+  const activeChatsList = useMemo(() => {
+    const list = []
+    connections.forEach(conn => {
+      list.push(conn)
+    })
+    messages.forEach(msg => {
+      if (msg.project_id) return
+      const otherUser = msg.sender_id.toLowerCase() === myUsername.toLowerCase() ? msg.recipient_id : msg.sender_id
+      if (otherUser && otherUser.toLowerCase() !== myUsername.toLowerCase()) {
+        const peer = registeredUsers.find(u => u.id.replace('real_', '').toLowerCase() === otherUser.toLowerCase()) || {
+          id: `real_${otherUser}`,
+          name: otherUser,
+          avatar: `https://api.dicebear.com/8.x/initials/svg?seed=${otherUser}`,
+          is_real: true
+        }
+        if (!list.some(item => item.id.replace('real_', '').toLowerCase() === otherUser.toLowerCase())) {
+          list.push(peer)
+        }
+      }
+    })
+    return list
+  }, [connections, messages, myUsername, registeredUsers])
+
+  if (!activeConversation) {
+    return (
+      <div className="glass rounded-2xl border border-white/6 p-4 flex flex-col h-[500px] lg:h-[calc(100vh-170px)] select-none">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-pink-500/20 border border-pink-500/30 flex items-center justify-center">
+            <MessageSquare className="w-4 h-4 text-pink-400" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-text-primary">Collaborator Chat</h2>
+            <p className="text-[10px] text-text-faint">Communications Mesh Active</p>
+          </div>
+        </div>
+
+        <div className="flex-1 flex flex-col justify-center items-center text-center p-6 bg-surface/20 border border-white/5 rounded-2xl mb-4">
+          <MessageSquare className="w-8 h-8 text-text-faint mb-2 animate-bounce" />
+          <h4 className="text-xs font-bold text-text-primary mb-1">Start a Conversation</h4>
+          <p className="text-[10px] text-text-muted max-w-[200px] leading-relaxed">
+            Select "Message" on a developer roster card or click "Discuss Project" in the showroom.
+          </p>
+        </div>
+
+        <div>
+          <h3 className="text-[10px] font-bold text-text-faint uppercase tracking-wider mb-2">Recent Chats & Connections</h3>
+          {activeChatsList.length > 0 ? (
+            <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+              {activeChatsList.map(peer => (
+                <button
+                  key={peer.id}
+                  onClick={() => setActiveConversation({ type: 'dm', peer })}
+                  className="w-full flex items-center gap-2.5 p-2 rounded-xl bg-white/4 hover:bg-violet-500/10 border border-white/5 hover:border-violet-500/30 text-left transition-all group"
+                >
+                  <img
+                    src={peer.avatar}
+                    className="w-7 h-7 rounded-lg object-cover"
+                    alt={peer.name}
+                    onError={e => { e.target.src = `https://api.dicebear.com/8.x/initials/svg?seed=${peer.name}` }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-text-primary group-hover:text-violet-300 truncate transition-colors">{peer.name}</p>
+                    <p className="text-[9px] text-text-faint truncate">@{peer.id.replace('real_', '')}</p>
+                  </div>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 group-hover:animate-ping" />
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[10px] text-text-faint italic">No active conversations yet.</p>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  const isProject = activeConversation.type === 'project'
+  const title = isProject ? activeConversation.project.title : activeConversation.peer.name
+  const subtitle = isProject ? 'Project Public Stream' : `@${activeConversation.peer.id.replace('real_', '')}`
+  const avatar = isProject
+    ? (activeConversation.project.avatar || `https://api.dicebear.com/8.x/initials/svg?seed=${activeConversation.project.author}`)
+    : activeConversation.peer.avatar
+
+  return (
+    <div className="glass rounded-2xl border border-white/6 p-4 flex flex-col h-[500px] lg:h-[calc(100vh-170px)]">
+      {/* Header */}
+      <div className="flex items-center justify-between pb-3 border-b border-white/6 mb-3 shrink-0">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <img
+            src={avatar}
+            className="w-8 h-8 rounded-lg object-cover border border-white/10 shrink-0"
+            alt={title}
+            onError={e => { e.target.src = `https://api.dicebear.com/8.x/initials/svg?seed=${title}` }}
+          />
+          <div className="min-w-0">
+            <h3 className="text-xs font-black text-text-primary truncate">{title}</h3>
+            <p className="text-[9px] text-text-faint truncate">{subtitle}</p>
+          </div>
+        </div>
+        <button
+          onClick={() => setActiveConversation(null)}
+          className="px-2.5 py-1 text-[10px] font-bold bg-white/5 border border-white/10 text-text-muted hover:text-white rounded-lg transition-all"
+        >
+          Back
+        </button>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto space-y-3 pr-1 mb-3 scrollbar-thin">
+        {filteredMessages.length > 0 ? (
+          filteredMessages.map((msg, idx) => {
+            const isMe = msg.sender_id.toLowerCase() === myUsername.toLowerCase()
+            return (
+              <div key={msg.id || idx} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                {(!isMe || isProject) && (
+                  <span className="text-[8px] text-text-faint font-semibold mb-0.5 ml-1">
+                    @{msg.sender_id}
+                  </span>
+                )}
+                <div
+                  className={`max-w-[85%] px-3 py-2 rounded-2xl text-xs leading-relaxed break-words ${
+                    isMe
+                      ? 'bg-violet-600/80 border border-violet-500/35 text-white rounded-tr-none'
+                      : 'bg-white/6 border border-white/8 text-text-primary rounded-tl-none'
+                  }`}
+                >
+                  {msg.message_text}
+                </div>
+                <span className="text-[8px] text-text-faint mt-0.5 px-1">
+                  {new Date(msg.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+            )
+          })
+        ) : (
+          <div className="h-full flex flex-col justify-center items-center text-center p-6 text-text-faint">
+            <MessageSquare className="w-6 h-6 text-text-faint mb-1 opacity-40" />
+            <p className="text-[10px] italic">No messages in this chat stream yet.</p>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input */}
+      <div className="flex gap-2 pt-2 border-t border-white/6 shrink-0">
+        <input
+          type="text"
+          placeholder="Type a message..."
+          value={inputText}
+          onChange={e => setInputText(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') handleSend()
+          }}
+          className="flex-1 bg-surface border border-border rounded-xl px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-violet-500/50"
+        />
+        <button
+          onClick={handleSend}
+          className="w-9 h-9 rounded-xl bg-violet-600 hover:bg-violet-500 text-white flex items-center justify-center transition-all shadow-md shrink-0"
+        >
+          <Send className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  )
+}
+

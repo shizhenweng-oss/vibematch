@@ -5,7 +5,7 @@ VibeMatch FastAPI Backend
 - SQLite user registry for persistence
 """
 
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
@@ -81,6 +81,19 @@ async def lifespan(app: FastAPI):
                 PRIMARY KEY (github_username, thought_id)
             )
         """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS messages (
+                id           TEXT PRIMARY KEY,
+                sender_id    TEXT,
+                recipient_id TEXT,
+                project_id   TEXT,
+                message_text TEXT,
+                timestamp    REAL
+            )
+        """)
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_messages_recipient ON messages(recipient_id)")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_messages_project ON messages(project_id)")
         await db.commit()
 
         # Database Migration: Check if new columns exist, and add them if not
@@ -143,6 +156,55 @@ class ThoughtPayload(BaseModel):
     created_at:  str
     images:      Optional[List[str]] = []
     cover_image: Optional[str] = ""
+
+class MessagePayload(BaseModel):
+    id: str
+    sender_id: str
+    recipient_id: Optional[str] = None
+    project_id: Optional[str] = None
+    message_text: str
+    timestamp: float
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections = {}
+
+    async def connect(self, username: str, websocket: WebSocket):
+        await websocket.accept()
+        key = username.lower()
+        if key not in self.active_connections:
+            self.active_connections[key] = []
+        self.active_connections[key].append(websocket)
+
+    def disconnect(self, username: str, websocket: WebSocket):
+        key = username.lower()
+        if key in self.active_connections:
+            try:
+                self.active_connections[key].remove(websocket)
+            except ValueError:
+                pass
+            if not self.active_connections[key]:
+                del self.active_connections[key]
+
+    async def send_personal_message(self, message: dict, username: str):
+        key = username.lower()
+        if key in self.active_connections:
+            for connection in self.active_connections[key]:
+                try:
+                    await connection.send_json(message)
+                except Exception:
+                    pass
+
+    async def broadcast(self, message: dict):
+        for key, connections in list(self.active_connections.items()):
+            for connection in connections:
+                try:
+                    await connection.send_json(message)
+                except Exception:
+                    pass
+
+ws_manager = ConnectionManager()
+
 
 
 # ── Skill Summary Generator ───────────────────────────────────────────────────
@@ -350,6 +412,16 @@ async def onboard_user(payload: OnboardingPayload):
         ))
         await db.commit()
 
+        # Query and format the user row to broadcast
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute("SELECT * FROM users WHERE github_username = ?", (username,))
+        user_row = await cursor.fetchone()
+
+    if user_row:
+        peer_data = format_user_to_peer(dict(user_row))
+        await ws_manager.broadcast({"type": "USER_REGISTERED", "payload": peer_data})
+
+
     matches = await get_db_matches(objective=payload.objective, workstyle=payload.workstyle, exclude=username, limit=8)
     return {
         "status":   "success",
@@ -472,7 +544,49 @@ async def create_thought(payload: ThoughtPayload):
             payload.cover_image or ""
         ))
         await db.commit()
+    
+    thought_dict = {
+        "id": payload.id,
+        "title": payload.title,
+        "author": payload.author,
+        "handle": payload.handle,
+        "avatar": payload.avatar,
+        "discussion": payload.discussion,
+        "github_url": payload.github_url,
+        "languages": payload.languages,
+        "phase": payload.phase,
+        "stars": payload.stars or 0,
+        "tags": payload.tags,
+        "created_at": payload.created_at,
+        "images": payload.images or [],
+        "cover_image": payload.cover_image or ""
+    }
+    await ws_manager.broadcast({"type": "THOUGHT_POSTED", "payload": thought_dict})
+
     return {"status": "success", "thought_id": payload.id}
+
+
+# ── User Registry Helpers ─────────────────────────────────────────────────────
+def format_user_to_peer(data: dict) -> dict:
+    gh = json.loads(data.get("github_data") or "{}")
+    skills = gh.get("languages") or []
+    username = data["github_username"]
+    return {
+        "id": f"real_{username}",
+        "name": gh.get("name") or username,
+        "avatar": gh.get("avatar") or f"https://avatars.githubusercontent.com/{username}",
+        "github_url": gh.get("html_url") or f"https://github.com/{username}",
+        "linkedin_id": data.get("linkedin_id") or "",
+        "objective": data["objective"],
+        "workstyle": data["workstyle"],
+        "skills": skills,
+        "bio": gh.get("bio") or f"Developer on VibeMatch — @{username}",
+        "github_stars": gh.get("total_stars") or 0,
+        "repos": gh.get("public_repos") or 0,
+        "match_score": 95,          # real users always shown prominently
+        "skill_summary": generate_skill_summary(skills) if skills else "Real VibeMatch platform member",
+        "is_real": True,            # frontend uses this for the "Live" badge
+    }
 
 
 # ── User Registry ─────────────────────────────────────────────────────────────
@@ -502,28 +616,11 @@ async def get_peer_users(
         if exclude and username.lower() == exclude.lower():
             continue
 
-        gh = json.loads(data.get("github_data") or "{}")
-        skills = gh.get("languages") or []
-
-        peer = {
-            "id": f"real_{username}",
-            "name": gh.get("name") or username,
-            "avatar": gh.get("avatar") or f"https://avatars.githubusercontent.com/{username}",
-            "github_url": gh.get("html_url") or f"https://github.com/{username}",
-            "linkedin_id": data.get("linkedin_id") or "",
-            "objective": data["objective"],
-            "workstyle": data["workstyle"],
-            "skills": skills,
-            "bio": gh.get("bio") or f"Developer on VibeMatch — @{username}",
-            "github_stars": gh.get("total_stars") or 0,
-            "repos": gh.get("public_repos") or 0,
-            "match_score": 95,          # real users always shown prominently
-            "skill_summary": generate_skill_summary(skills) if skills else "Real VibeMatch platform member",
-            "is_real": True,            # frontend uses this for the "Live" badge
-        }
+        peer = format_user_to_peer(data)
         peers.append(peer)
 
     return {"count": len(peers), "peers": peers}
+
 
 
 @app.get("/api/users")
@@ -586,7 +683,8 @@ async def vibe_with_project(project_id: str = Query(...), username: Optional[str
                 new_stars = max(0, current_stars - 1)
                 await db.execute("UPDATE thoughts SET stars = ? WHERE id = ?", (new_stars, project_id))
                 await db.commit()
-                return {"status": "unvibed", "message": "Vibe removed!", "stars": new_stars}
+                status = "unvibed"
+                message = "Vibe removed!"
             else:
                 await db.execute(
                     "INSERT INTO vibes (github_username, thought_id) VALUES (?, ?)",
@@ -595,12 +693,18 @@ async def vibe_with_project(project_id: str = Query(...), username: Optional[str
                 new_stars = current_stars + 1
                 await db.execute("UPDATE thoughts SET stars = ? WHERE id = ?", (new_stars, project_id))
                 await db.commit()
-                return {"status": "vibed", "message": "You are vibing with this thought! 🚀", "stars": new_stars}
+                status = "vibed"
+                message = "You are vibing with this thought! 🚀"
         else:
             new_stars = current_stars + 1
             await db.execute("UPDATE thoughts SET stars = ? WHERE id = ?", (new_stars, project_id))
             await db.commit()
-            return {"status": "vibed", "message": "You are vibing with this thought! 🚀", "stars": new_stars}
+            status = "vibed"
+            message = "You are vibing with this thought! 🚀"
+
+    await ws_manager.broadcast({"type": "THOUGHT_VIBED", "payload": {"thoughtId": project_id, "stars": new_stars}})
+    return {"status": status, "message": message, "stars": new_stars}
+
 
 
 @app.delete("/api/thoughts/{thought_id}")
@@ -617,5 +721,89 @@ async def delete_thought(thought_id: str, username: str):
         await db.execute("DELETE FROM thoughts WHERE id = ?", (thought_id,))
         await db.execute("DELETE FROM vibes WHERE thought_id = ?", (thought_id,))
         await db.commit()
+    
+    await ws_manager.broadcast({"type": "THOUGHT_DELETED", "payload": {"thoughtId": thought_id}})
+
     return {"status": "success", "message": "Project thought deleted successfully"}
+
+
+@app.post("/api/messages")
+async def send_message(payload: MessagePayload):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("""
+            INSERT INTO messages (id, sender_id, recipient_id, project_id, message_text, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            payload.id,
+            payload.sender_id,
+            payload.recipient_id,
+            payload.project_id,
+            payload.message_text,
+            payload.timestamp
+        ))
+        await db.commit()
+
+    msg_dict = {
+        "id": payload.id,
+        "sender_id": payload.sender_id,
+        "recipient_id": payload.recipient_id,
+        "project_id": payload.project_id,
+        "message_text": payload.message_text,
+        "timestamp": payload.timestamp
+    }
+
+    if payload.recipient_id:
+        await ws_manager.send_personal_message({"type": "MESSAGE_RECEIVED", "payload": msg_dict}, payload.sender_id)
+        await ws_manager.send_personal_message({"type": "MESSAGE_RECEIVED", "payload": msg_dict}, payload.recipient_id)
+    else:
+        await ws_manager.broadcast({"type": "MESSAGE_RECEIVED", "payload": msg_dict})
+
+    return {"status": "success", "message_id": payload.id}
+
+
+@app.get("/api/messages")
+async def get_messages(
+    sender: Optional[str] = Query(None),
+    recipient: Optional[str] = Query(None),
+    project_id: Optional[str] = Query(None),
+    limit: int = Query(100, ge=1, le=500)
+):
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        if project_id:
+            cursor = await db.execute(
+                "SELECT * FROM messages WHERE project_id = ? ORDER BY timestamp ASC LIMIT ?",
+                (project_id, limit)
+            )
+        elif sender and recipient:
+            cursor = await db.execute(
+                """
+                SELECT * FROM messages 
+                WHERE (sender_id = ? AND recipient_id = ?) 
+                   OR (sender_id = ? AND recipient_id = ?) 
+                ORDER BY timestamp ASC LIMIT ?
+                """,
+                (sender, recipient, recipient, sender, limit)
+            )
+        else:
+            cursor = await db.execute(
+                "SELECT * FROM messages ORDER BY timestamp ASC LIMIT ?",
+                (limit,)
+            )
+        rows = await cursor.fetchall()
+
+    return [dict(r) for r in rows]
+
+
+@app.websocket("/api/ws/{username}")
+async def websocket_endpoint(websocket: WebSocket, username: str):
+    await ws_manager.connect(username, websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        ws_manager.disconnect(username, websocket)
+    except Exception:
+        ws_manager.disconnect(username, websocket)
+
 
